@@ -1,0 +1,53 @@
+[project]
+name = "rss-aggregator-web"
+version = "0.1.0"
+description = "FastAPI web UI for rss-aggregator (read-only)"
+requires-python = ">=3.12"
+dependencies = [
+    "rss-aggregator-shared",
+    "fastapi>=0.115.0",
+    "jinja2>=3.1.4",
+    "uvicorn[standard]>=0.32.0",
+    "markdown>=3.10.2",
+    "nh3>=0.3.5",
+]
+
+[project.optional-dependencies]
+cloud = [
+    "rss-aggregator-shared[cloud]",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.0",
+    "pytest>=8.3.0",
+    "ruff>=0.15.12",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["web*"]
+
+[tool.setuptools.package-data]
+web = ["templates/**/*.html", "static/**/*.css"]
+
+[tool.uv.sources]
+rss-aggregator-shared = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "unit: HTTP クライアントを使わない純粋ロジック",
+    "integration: FastAPI TestClient による結合テスト",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

@@ -1,0 +1,31 @@
+# Git / CI（イメージに不要）
+.git/
+.github/
+
+# Terraform・README など（COPY 対象外）
+infra/
+*.md
+
+# テスト（本番イメージでは uv が依存だけ同期するため含めない）
+**/tests/
+
+# Python キャッシュ・仮想環境
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+*.py[cod]
+.venv/
+
+# ローカルデータ・秘密情報（feeds は Dockerfile で別 COPY）
+data/
+.env
+.env.*
+
+# Compose / ツール設定（コンテナにコピーしない）
+docker-compose.yml
+docker-compose.*.yml
+mise.toml
+
+# 開発環境
+.cursor/

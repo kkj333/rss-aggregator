@@ -1,0 +1,5 @@
+# https://mise.jdx.dev/
+[tools]
+python = "3.12"
+terraform = "1.14.8"
+gcloud = "566.0.0"

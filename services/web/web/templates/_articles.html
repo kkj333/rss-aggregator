@@ -1,0 +1,45 @@
+{% from "_article_macros.html" import article_row %}
+<div
+  id="collection-area"
+  hx-get="/articles?limit={{ display_limit }}"
+  hx-trigger="every 300s"
+  hx-target="#collection-area"
+  hx-swap="outerHTML"
+>
+  <div class="hn-subbar">
+    <span class="hn-subbar-title">
+      新着
+      {% if articles %}
+        <span class="hn-subbar-muted">
+          · 表示 {{ articles|length }} 件
+          {% if has_more and display_limit >= article_max_display %}
+            （一覧は最大 {{ article_max_display }} 件まで）
+          {% endif %}
+        </span>
+      {% endif %}
+    </span>
+  </div>
+
+  {% if articles %}
+    <ul class="hn-list" id="hn-article-list">
+      {% for article in articles %}
+        {{ article_row(article) }}
+      {% endfor %}
+    </ul>
+    <div class="hn-more-wrap">
+      {% if has_more and next_limit > display_limit %}
+        <button
+          type="button"
+          class="hn-more"
+          hx-get="/articles?limit={{ next_limit }}"
+          hx-target="#collection-area"
+          hx-swap="outerHTML"
+        >もっと見る（+{{ next_limit - display_limit }}件）</button>
+      {% elif has_more and display_limit >= article_max_display %}
+        <p class="hn-more-note">一覧の表示は最大 {{ article_max_display }} 件です。</p>
+      {% endif %}
+    </div>
+  {% else %}
+    <p class="hn-empty">記事はまだありません。各ブログの更新が取り込まれたら、ここに表示されます。</p>
+  {% endif %}
+</div>

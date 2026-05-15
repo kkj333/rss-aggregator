@@ -1,0 +1,35 @@
+[project]
+name = "rss-aggregator-shared"
+version = "0.1.0"
+description = "Shared domain layer for rss-aggregator (config, models, storage)"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+cloud = [
+    "google-cloud-firestore>=2.19.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "ruff>=0.15.12",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["shared*"]
+
+[tool.pytest.ini_options]
+testpaths = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

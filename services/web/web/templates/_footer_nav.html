@@ -1,0 +1,12 @@
+{% set path = request.url.path %}
+<a
+  class="hn-footer-link{% if path.startswith('/blogs') %} hn-footer-link--current{% endif %}"
+  href="/blogs"
+  {% if path.startswith("/blogs") %}aria-current="page"{% endif %}
+>ブログ一覧</a>
+<span class="hn-footer-sep" aria-hidden="true">·</span>
+<a
+  class="hn-footer-link{% if path == '/about' %} hn-footer-link--current{% endif %}"
+  href="/about"
+  {% if path == "/about" %}aria-current="page"{% endif %}
+>About</a>

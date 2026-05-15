@@ -1,0 +1,11 @@
+---
+description: Test-first when changing Python services (pytest, Red–Green–Refactor)
+globs: services/**/*.py
+alwaysApply: false
+---
+
+# TDD
+
+- **新しい挙動**や**バグ修正**では、先に **失敗するテスト** を足し、そのあと実装する（Red → Green → 必要ならリファクタ）。
+- テストは **`uv run pytest`** で確認。Web は `tests/unit/`（`@pytest.mark.unit`・HTTP なし）と `tests/integration/`（`@pytest.mark.integration`・TestClient）に分け、`web/blog` なら `tests/unit/blog` / `tests/integration/blog` のようにソースに寄せる。絞り込みは **`pytest -m unit`** / **`pytest -m integration`**。
+- 正当化がない限り、**テストなしの本実装だけ**にしない。

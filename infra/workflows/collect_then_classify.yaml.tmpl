@@ -1,0 +1,124 @@
+main:
+  steps:
+    - init:
+        assign:
+          - project_id: $${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+          - region: "${region}"
+          - collector_job: "${service_name}-collector"
+          - classifier_job: "${service_name}-classifier"
+          - commentator_job: "${service_name}-commentator"
+          - poll_attempts: 0
+          # 30s × N → collector は通常短い（既定 10 分上限）
+          - max_poll_attempts: 20
+          # classifier は Vertex/Gemini で記事数に比例して長くなる（既定 30 分上限）
+          - max_classifier_poll_attempts: 60
+
+    - run_collector:
+        call: http.post
+        args:
+          url: $${"https://" + region + "-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/" + project_id + "/jobs/" + collector_job + ":run"}
+          auth:
+            type: OAuth2
+            scopes: "https://www.googleapis.com/auth/cloud-platform"
+        result: collector_run
+
+    - extract_exec_name:
+        assign:
+          - exec_name: $${collector_run.body.metadata.name}
+
+    - poll_wait:
+        call: sys.sleep
+        args:
+          seconds: 30
+
+    - increment_attempts:
+        assign:
+          - poll_attempts: $${poll_attempts + 1}
+
+    - check_timeout:
+        switch:
+          - condition: $${poll_attempts >= max_poll_attempts}
+            raise: "Collector job polling timed out after 10 minutes"
+
+    - poll_execution:
+        call: http.get
+        args:
+          url: $${"https://" + region + "-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/" + project_id + "/executions/" + exec_name}
+          auth:
+            type: OAuth2
+            scopes: "https://www.googleapis.com/auth/cloud-platform"
+        result: exec_status
+
+    - check_complete:
+        switch:
+          - condition: $${default(map.get(exec_status.body.status, "completionTime"), "") != ""}
+            next: check_failed
+        next: poll_wait
+
+    - check_failed:
+        switch:
+          - condition: $${default(map.get(exec_status.body.status, "failedCount"), 0) > 0}
+            raise: "Collector job execution failed"
+
+    - run_classifier:
+        call: http.post
+        args:
+          url: $${"https://" + region + "-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/" + project_id + "/jobs/" + classifier_job + ":run"}
+          auth:
+            type: OAuth2
+            scopes: "https://www.googleapis.com/auth/cloud-platform"
+        result: classifier_run
+
+    - extract_classifier_exec_name:
+        assign:
+          - classifier_exec_name: $${classifier_run.body.metadata.name}
+          - poll_attempts: 0
+
+    - classifier_poll_wait:
+        call: sys.sleep
+        args:
+          seconds: 30
+
+    - classifier_increment_attempts:
+        assign:
+          - poll_attempts: $${poll_attempts + 1}
+
+    - classifier_check_timeout:
+        switch:
+          - condition: $${poll_attempts >= max_classifier_poll_attempts}
+            raise: "Classifier job polling timed out after 30 minutes"
+
+    - classifier_poll_execution:
+        call: http.get
+        args:
+          url: $${"https://" + region + "-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/" + project_id + "/executions/" + classifier_exec_name}
+          auth:
+            type: OAuth2
+            scopes: "https://www.googleapis.com/auth/cloud-platform"
+        result: classifier_exec_status
+
+    - classifier_check_complete:
+        switch:
+          - condition: $${default(map.get(classifier_exec_status.body.status, "completionTime"), "") != ""}
+            next: classifier_check_failed
+        next: classifier_poll_wait
+
+    - classifier_check_failed:
+        switch:
+          - condition: $${default(map.get(classifier_exec_status.body.status, "failedCount"), 0) > 0}
+            raise: "Classifier job execution failed"
+
+    - run_commentator:
+        call: http.post
+        args:
+          url: $${"https://" + region + "-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/" + project_id + "/jobs/" + commentator_job + ":run"}
+          auth:
+            type: OAuth2
+            scopes: "https://www.googleapis.com/auth/cloud-platform"
+        result: commentator_run
+
+    - done:
+        return:
+          collector_execution: $${exec_name}
+          classifier_execution: $${classifier_exec_name}
+          commentator_execution: $${commentator_run.body.metadata.name}

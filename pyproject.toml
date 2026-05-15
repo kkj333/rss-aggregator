@@ -1,0 +1,59 @@
+[project]
+name = "rss-aggregator"
+version = "0.1.0"
+description = "Monorepo: collect RSS/Atom feeds, show newest articles, serve aggregated /rss (FastAPI, Firestore, Cloud Run)."
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    "services/classifier",
+    "services/collector",
+    "services/commentator",
+    "services/profiler",
+    "services/shared",
+    "services/web",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "ruff>=0.15.12",
+    "rss-aggregator-shared",
+    "rss-aggregator-web",
+    "rss-aggregator-collector",
+    "rss-aggregator-classifier",
+    "rss-aggregator-commentator",
+    "rss-aggregator-profiler",
+]
+
+[tool.uv.sources]
+rss-aggregator-shared = { workspace = true }
+rss-aggregator-web = { workspace = true }
+rss-aggregator-collector = { workspace = true }
+rss-aggregator-classifier = { workspace = true }
+rss-aggregator-commentator = { workspace = true }
+rss-aggregator-profiler = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = [
+    "services/classifier/tests",
+    "services/collector/tests",
+    "services/commentator/tests",
+    "services/profiler/tests",
+    "services/shared/tests",
+    "services/web/tests",
+]
+markers = [
+    "unit: HTTP クライアントを使わない純粋ロジック（Web）",
+    "integration: FastAPI TestClient による結合テスト（Web）",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

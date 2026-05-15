@@ -1,0 +1,14 @@
+{% set path = request.url.path %}
+<nav class="hn-header-tools" aria-label="サイト内ナビ">
+  <a
+    href="/blogs"
+    class="hn-header-link{% if path.startswith('/blogs') %} hn-header-link--current{% endif %}"
+    {% if path.startswith("/blogs") %}aria-current="page"{% endif %}
+  >ブログ一覧</a>
+  <span class="hn-header-sep" aria-hidden="true">·</span>
+  <a
+    href="/about"
+    class="hn-header-link{% if path == '/about' %} hn-header-link--current{% endif %}"
+    {% if path == "/about" %}aria-current="page"{% endif %}
+  >About</a>
+</nav>

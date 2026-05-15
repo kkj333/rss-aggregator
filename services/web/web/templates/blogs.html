@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    {% include "_google_analytics.html" %}
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ app_name }} — ブログ一覧</title>
+    <meta name="description" content="{{ meta_description }}">
+    <link rel="icon" href="/favicon.ico" sizes="32x32" type="image/png">
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" sizes="any">
+    <link rel="canonical" href="{{ canonical_url }}">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="ja_JP">
+    <meta property="og:title" content="{{ app_name }} — ブログ一覧">
+    <meta property="og:description" content="{{ meta_description }}">
+    <meta property="og:url" content="{{ canonical_url }}">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ app_name }} — ブログ一覧">
+    <meta name="twitter:description" content="{{ meta_description }}">
+    <link rel="alternate" type="application/rss+xml" title="{{ app_name }}" href="{{ rss_absolute_url }}">
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body class="hn-root">
+    <header class="hn-header">
+      <div class="hn-header-inner">
+        <p class="hn-brand">
+          <a href="/">{{ app_name }}</a>
+        </p>
+        {% include "_header_nav.html" %}
+      </div>
+    </header>
+
+    <main class="hn-main hn-main--single">
+      <article class="hn-feeds-page" aria-labelledby="feeds-heading">
+        <h1 id="feeds-heading" class="hn-about-title">ブログ一覧</h1>
+        {% if total_feeds %}
+          <p class="hn-feeds-summary hn-muted">
+            全 {{ total_feeds }} 件 · 1 ページあたり {{ page_size }} 件 · {{ page }} / {{ total_pages }} ページ目
+          </p>
+          <ul class="hn-feeds">
+            {% for feed, blog_path in feeds_with_paths %}
+              <li class="hn-feeds-item">
+                <a class="hn-feed-name" href="/blogs/{{ blog_path }}">{{ feed.title }}</a>
+              </li>
+            {% endfor %}
+          </ul>
+          {% if total_pages > 1 %}
+            <nav class="hn-feed-pager" aria-label="ページ送り">
+              {% if page > 1 %}
+                <a class="hn-feed-pager-link" href="/blogs?page={{ page - 1 }}">前へ</a>
+              {% else %}
+                <span class="hn-feed-pager-muted">前へ</span>
+              {% endif %}
+              <span class="hn-feed-pager-pos">{{ page }} / {{ total_pages }}</span>
+              {% if page < total_pages %}
+                <a class="hn-feed-pager-link" href="/blogs?page={{ page + 1 }}">次へ</a>
+              {% else %}
+                <span class="hn-feed-pager-muted">次へ</span>
+              {% endif %}
+            </nav>
+          {% endif %}
+        {% else %}
+          <p class="hn-about-text">まとめている掲載元サイトは、まだありません。</p>
+        {% endif %}
+        <p class="hn-about-back">
+          <a href="/">← トップへ</a>
+        </p>
+      </article>
+    </main>
+
+    <footer class="hn-footer" role="contentinfo">
+      <div class="hn-footer-inner hn-footer-links">
+        {% include "_footer_nav.html" %}
+      </div>
+    </footer>
+  </body>
+</html>

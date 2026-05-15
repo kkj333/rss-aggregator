@@ -1,0 +1,10 @@
+[
+  {
+    "title": "ブログタイトル例1",
+    "url": "https://example.com/feeds/posts/default?alt=rss"
+  },
+  {
+    "title": "ブログタイトル例2",
+    "url": "https://example.hatenablog.com/rss"
+  }
+]

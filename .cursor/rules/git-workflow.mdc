@@ -1,0 +1,12 @@
+---
+description: Branch from updated main, commit, push, open PR with gh
+alwaysApply: true
+---
+
+# Git（短文）
+
+- 作業ブランチは **`main` を `git pull` したあと** に切る（`git checkout main && git pull origin main` → `git checkout -b feature/...`）。
+- **`main` へ直接 `push` しない。** 変更は作業ブランチで PR し、マージで取り込む（強制には GitHub の branch protection を使うのが望ましい）。
+- コミットは **意味のある単位**で、メッセージは何を変えたか分かる英文またはこのリポの慣習に合わせる。
+- リモートへは **`git push -u origin <branch>`**（初回）。PR は **`gh pr create`** で出す（本文に関連 Issue を `Fixes #` / `Closes #` で紐づける）。
+- リリースタグ・リリースノートは **`git-tagging` スキル**に従う（普段の機能 PR とは別フロー）。

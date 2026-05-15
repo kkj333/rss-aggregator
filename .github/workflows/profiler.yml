@@ -1,0 +1,106 @@
+name: Run Profiler
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_existing:
+        description: "既存の profile があるフィードをスキップする (true / false)"
+        required: false
+        default: "true"
+      environment:
+        description: "実行環境 (staging / production)"
+        required: false
+        default: "staging"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  REGION: asia-northeast1
+  SERVICE: rss-aggregator
+
+jobs:
+  run-profiler:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve target project
+        id: target
+        env:
+          INPUT_ENV: ${{ github.event.inputs.environment }}
+          STG_PROJECT_VAR: ${{ vars.STG_GCP_PROJECT_ID }}
+          STG_PROJECT_SECRET: ${{ secrets.STG_GCP_PROJECT_ID }}
+          PROD_PROJECT_VAR: ${{ vars.PROD_GCP_PROJECT_ID }}
+          PROD_PROJECT_SECRET: ${{ secrets.PROD_GCP_PROJECT_ID }}
+          LEGACY_PROJECT_VAR: ${{ vars.GCP_PROJECT_ID }}
+          LEGACY_PROJECT_SECRET: ${{ secrets.GCP_PROJECT_ID }}
+          STG_SERVICE_VAR: ${{ vars.STG_SERVICE_NAME }}
+          PROD_SERVICE_VAR: ${{ vars.PROD_SERVICE_NAME }}
+        run: |
+          if [ "$INPUT_ENV" = "production" ]; then
+            PID="$PROD_PROJECT_VAR"
+            if [ -z "$PID" ]; then PID="$PROD_PROJECT_SECRET"; fi
+            SVC="$PROD_SERVICE_VAR"
+          else
+            PID="$STG_PROJECT_VAR"
+            if [ -z "$PID" ]; then PID="$STG_PROJECT_SECRET"; fi
+            if [ -z "$PID" ]; then
+              PID="$LEGACY_PROJECT_VAR"
+              if [ -z "$PID" ]; then PID="$LEGACY_PROJECT_SECRET"; fi
+            fi
+            SVC="$STG_SERVICE_VAR"
+          fi
+          if [ -z "$SVC" ]; then SVC="${{ env.SERVICE }}"; fi
+          if [ -z "$PID" ]; then
+            echo "::error::GCP project ID not configured."
+            exit 1
+          fi
+          echo "project_id=$PID" >> "$GITHUB_OUTPUT"
+          echo "service_name=$SVC" >> "$GITHUB_OUTPUT"
+
+      - name: Normalize WIF provider
+        id: wif
+        env:
+          INPUT_ENV: ${{ github.event.inputs.environment }}
+          STG_RAW: ${{ secrets.STG_WIF_PROVIDER }}
+          PROD_RAW: ${{ secrets.PROD_WIF_PROVIDER }}
+          LEGACY_RAW: ${{ secrets.WIF_PROVIDER }}
+        run: |
+          if [ "$INPUT_ENV" = "production" ]; then
+            RAW="$PROD_RAW"
+            if [ -z "$RAW" ]; then RAW="$LEGACY_RAW"; fi
+          else
+            RAW="$STG_RAW"
+            if [ -z "$RAW" ]; then RAW="$LEGACY_RAW"; fi
+          fi
+          # STS uses audience //iam.googleapis.com/${workload_identity_provider}; path must exist in GCP.
+          PROVIDER="$(printf '%s' "$RAW" | tr -d '[:space:]')"
+          if ! printf '%s' "$PROVIDER" | grep -qE '^projects/[0-9]+/locations/global/workloadIdentityPools/[^/]+/providers/[^/]+$'; then
+            echo "::error::WIF_PROVIDER must be exactly: projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL/providers/PROVIDER (numeric project number only). Sync from: terraform output -raw github_actions_workload_identity_provider"
+            exit 1
+          fi
+          echo "workload_identity_provider=$PROVIDER" >> "$GITHUB_OUTPUT"
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ steps.wif.outputs.workload_identity_provider }}
+          service_account: ${{ github.event.inputs.environment == 'production' && (secrets.PROD_WIF_SERVICE_ACCOUNT || secrets.WIF_SERVICE_ACCOUNT) || (secrets.STG_WIF_SERVICE_ACCOUNT || secrets.WIF_SERVICE_ACCOUNT) }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Execute profiler job
+        env:
+          SKIP_EXISTING: ${{ github.event.inputs.skip_existing }}
+        run: |
+          set -euo pipefail
+          PROJECT="${{ steps.target.outputs.project_id }}"
+          REGION="${{ env.REGION }}"
+          JOB="${{ steps.target.outputs.service_name }}-profiler"
+          gcloud run jobs execute "$JOB" \
+            --project="$PROJECT" \
+            --region="$REGION" \
+            --update-env-vars="PROFILER_SKIP_EXISTING=${SKIP_EXISTING}" \
+            --wait

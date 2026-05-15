@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    {% include "_google_analytics.html" %}
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ app_name }}について</title>
+    <meta name="description" content="{{ meta_description }}">
+    <link rel="icon" href="/favicon.ico" sizes="32x32" type="image/png">
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" sizes="any">
+    <link rel="canonical" href="{{ canonical_url }}">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="ja_JP">
+    <meta property="og:title" content="{{ app_name }}について">
+    <meta property="og:description" content="{{ meta_description }}">
+    <meta property="og:url" content="{{ canonical_url }}">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ app_name }}について">
+    <meta name="twitter:description" content="{{ meta_description }}">
+    <link rel="alternate" type="application/rss+xml" title="{{ app_name }}" href="{{ rss_absolute_url }}">
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body class="hn-root">
+    <header class="hn-header">
+      <div class="hn-header-inner">
+        <p class="hn-brand">
+          <a href="/">{{ app_name }}</a>
+        </p>
+        {% include "_header_nav.html" %}
+      </div>
+    </header>
+
+    <main class="hn-main hn-main--single">
+      <article class="hn-about" aria-labelledby="about-heading">
+        <h1 id="about-heading" class="hn-about-title">{{ app_name }}について</h1>
+
+        <section class="hn-about-section hn-about-section--lead">
+          <p class="hn-about-text">
+            複数のブログやサイトの RSS/Atom をまとめて新着順に見られるようにするためのサンプル実装です。
+          </p>
+          <p class="hn-about-text">
+            登録したフィードから記事を自動収集し、一覧・集約 RSS で配信するシンプルな構成です。
+          </p>
+        </section>
+
+        <section class="hn-about-section hn-about-section--note" aria-label="利用上の注意と案内">
+          <p class="hn-about-text">
+            著作権は各ブログの運営者に帰属します。
+          </p>
+          <p class="hn-about-text">
+            掲載ブログの一覧は <a href="/feeds">こちら</a>。
+          </p>
+          <p class="hn-about-text">
+            掲載希望・削除依頼は運用者のお問い合わせ窓口（<code>CONTACT_FORM_URL</code> 環境変数で設定）へ。
+          </p>
+        </section>
+
+        <p class="hn-about-back">
+          <a href="/">← トップへ</a>
+        </p>
+      </article>
+    </main>
+
+    <footer class="hn-footer" role="contentinfo">
+      <div class="hn-footer-inner hn-footer-links">
+        {% include "_footer_nav.html" %}
+      </div>
+    </footer>
+  </body>
+</html>

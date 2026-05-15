@@ -1,0 +1,30 @@
+# Dependabot の PR を「チェック通過後に自動マージ」に並べる。
+# リポジトリ設定で「Allow auto-merge」をオンにすること（Settings → General → Pull requests）。
+# main のブランチ保護で必須チェックがある場合、CI が緑になるまでマージされない。
+name: Dependabot auto-merge
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # メジャー更新は手動レビューしたい場合のガード（外したければ if を削除）
+      - name: Enable auto-merge
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

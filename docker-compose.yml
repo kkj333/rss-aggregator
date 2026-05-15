@@ -1,0 +1,105 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: services/web/Dockerfile
+    # Docker Desktop（Apple Silicon）で linux/arm64 イメージ + Firestore（gRPC）利用時に
+    # SIGILL で落ちる（ログは healthz の直後に exited code 132 など）事例への回避。
+    # 純 Linux/arm64 で問題なく動く場合はこの行を外してよい（x86_64 Linux では実質無害）。
+    platform: linux/amd64
+    ports:
+      - "8000:8080"
+    # reload なし: Docker Desktop + ボリュームマウントで --reload が不安定になることがあるため。
+    # ホットリロードしたいときは docs/local.md の「Docker で --reload」参照。
+    command:
+      [
+        "uvicorn",
+        "web.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8080",
+      ]
+    volumes:
+      # フィード追加時に再ビルド不要
+      - ./feeds.json:/app/feeds.json:ro
+      - ./services/web/web:/app/services/web/web
+      - ./services/shared/shared:/app/services/shared/shared
+      # stg Firestore 認証（gcloud auth application-default login で生成）
+      - ~/.config/gcloud:/root/.config/gcloud:ro
+    # Web 用の環境変数（Compose の ${VAR} 展開はリポジトリ直下の .env のみ参照する点に注意）。
+    # 無い場合でも起動できるように required: false（Compose v2.24+）。
+    env_file:
+      - path: services/web/.env
+        required: false
+    environment:
+      # .env が ./feeds.json でも、コンテナ内ではマウント先を指す
+      FEEDS_JSON_PATH: /app/feeds.json
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/app/.venv/bin/python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=4)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  # pytest（workspace 全体。既定の up では起動しない）
+  # 例: docker compose --profile test run --rm tests
+  # 例（web のみ）: docker compose --profile test run --rm tests uv run pytest services/web/tests -q
+  tests:
+    profiles: [test]
+    build:
+      context: .
+      dockerfile: services/web/Dockerfile.compose-test
+    volumes:
+      - ./services/web/web:/app/services/web/web
+      - ./services/web/tests:/app/services/web/tests
+      - ./services/shared/shared:/app/services/shared/shared
+      - ./services/collector/collect:/app/services/collector/collect
+      - ./services/collector/tests:/app/services/collector/tests
+
+  # プロファイル生成（一回実行して終了）。既定の `docker compose up` では起動しない。
+  # 例: GOOGLE_CLOUD_PROJECT=<project> docker compose --profile profiler run --rm profiler
+  # 例（既存スキップを無効にして全更新）:
+  #   GOOGLE_CLOUD_PROJECT=<project> PROFILER_SKIP_EXISTING=false docker compose --profile profiler run --rm profiler
+  profiler:
+    build:
+      context: .
+      dockerfile: services/profiler/Dockerfile
+    platform: linux/arm64
+    profiles: [profiler]
+    volumes:
+      - ./feeds.json:/workspace/feeds.json:ro
+      - ./services/profiler/feed_profiler:/workspace/services/profiler/feed_profiler
+      - ./services/shared/shared:/workspace/services/shared/shared
+      - ~/.config/gcloud:/root/.config/gcloud:ro
+    environment:
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT}
+      FIRESTORE_FEEDS_COLLECTION: ${FIRESTORE_FEEDS_COLLECTION:-feeds}
+      FEEDS_JSON_PATH: /workspace/feeds.json
+      GEMINI_LOCATION: ${GEMINI_LOCATION:-global}
+      PROFILER_MODEL: ${PROFILER_MODEL:-gemini-3-flash-preview}
+      PROFILER_SKIP_EXISTING: ${PROFILER_SKIP_EXISTING:-true}
+      PROFILER_DEBUG: ${PROFILER_DEBUG:-false}
+
+  # RSS 収集（一回実行して終了）。既定の `docker compose up` では起動しない。
+  # 例: GOOGLE_CLOUD_PROJECT=<project> docker compose --profile collector run --rm collector
+  collector:
+    build:
+      context: .
+      dockerfile: services/collector/Dockerfile
+    profiles: [collector]
+    volumes:
+      - ./feeds.json:/workspace/feeds.json:ro
+      - ./services/collector/collect:/workspace/services/collector/collect
+      - ./services/shared/shared:/workspace/services/shared/shared
+      - ~/.config/gcloud:/root/.config/gcloud:ro
+    environment:
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT}
+      FIRESTORE_COLLECTION: articles
+      FEEDS_JSON_PATH: /workspace/feeds.json

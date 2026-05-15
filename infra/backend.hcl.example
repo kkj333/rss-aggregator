@@ -1,0 +1,8 @@
+# コピーして backend.hcl にリネームし、bucket を自分の GCS バケット名に変更する。
+#   cp backend.hcl.example backend.hcl
+# バケットは先に GCP で作成しておく（例は README 参照）。
+#
+# backend.hcl は .gitignore 済み（コミットしない）。
+
+bucket = "your-terraform-state-bucket-name"
+prefix = "rss-aggregator/terraform"

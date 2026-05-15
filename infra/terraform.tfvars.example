@@ -1,0 +1,24 @@
+# Terraform state は GCS に置く（infra/backend.hcl を用意して terraform init -backend-config=backend.hcl）
+# 手順: infra/backend.hcl.example を backend.hcl にコピーしバケット名を書く → README「GCS に state を置く」を参照
+
+project_id = "your-gcp-project-id"
+# Omit container_image on first apply (uses regional cloudrun/container/hello). CD then sets the real image.
+# container_image = "asia-northeast1-docker.pkg.dev/your-gcp-project-id/rss-aggregator/app:latest"
+# Omit collector_container_image on first apply (uses Google's cloudrun/container/job). CD pushes services/collector.
+# collector_container_image = "asia-northeast1-docker.pkg.dev/your-gcp-project-id/rss-aggregator/collector:latest"
+
+# 任意: GitHub リポが違う場合
+# github_repository = "owner/repo"
+
+# 任意: canonical / RSS / robots / sitemap 用の本番 URL（末尾スラッシュ不要）。未設定ならアプリはリクエストから組み立てる。
+# public_base_url = "https://example.com"
+
+# 任意: Cloud Run Job のタスク時間上限（既定 3600s = 1 時間）。未設定でも Terraform の default と CD の CLOUD_RUN_JOB_TASK_TIMEOUT と揃えること。
+# cloud_run_job_task_timeout = "3600s"
+
+# 任意: 収集ジョブの周期（既定は Asia/Tokyo で朝・昼・晩の 3 回: 8 / 12 / 20 時）
+# scheduler_cron = "0 8,12,20 * * *"
+# scheduler_time_zone = "Asia/Tokyo"
+
+# state 用 GCS バケット名（GitHub の TF_STATE_BUCKET と同じ）。設定すると GitHub Actions SA に objectAdmin を付与する IAM が入る。
+# terraform_state_bucket = "your-project-rss-aggregator-tfstate"

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": ".cursor/hooks/ruff-after-edit.sh",
+        "timeout": 120
+      }
+    ],
+    "afterTabFileEdit": [
+      {
+        "command": ".cursor/hooks/ruff-after-edit.sh",
+        "timeout": 120
+      }
+    ]
+  }
+}

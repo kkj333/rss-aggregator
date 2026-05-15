@@ -1,0 +1,21 @@
+{# 記事1行（一覧・htmx 差し替えで共通） #}
+{% macro article_row(article) -%}
+      <li class="hn-row">
+        <div class="hn-row-body">
+          <div class="hn-row-line1">
+            <a class="hn-title" href="{{ article.url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
+          </div>
+          <div class="hn-row-line2">
+            <span class="hn-source"><a class="hn-source-link" href="/blogs/{{ blog_path_for_feed_url(article.feed_url) }}">{{ article.source_title }}</a></span>
+          </div>
+          <div class="hn-row-line3">
+            <time class="hn-time" datetime="{{ article.published_at.isoformat() }}">{{ article.published_at.astimezone().strftime("%Y/%m/%d %H:%M") }}</time>
+          </div>
+          {% if article.ai_comment %}
+          <div class="hn-row-line4">
+            <span class="hn-ai-comment">🤖 {{ article.ai_comment }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </li>
+{%- endmacro %}

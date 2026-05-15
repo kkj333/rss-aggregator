@@ -1,0 +1,263 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  REGION: asia-northeast1
+  SERVICE: rss-aggregator
+  AR_REPO: rss-aggregator
+  IMAGE_NAME: app
+  COLLECTOR_IMAGE_NAME: collector
+  CLASSIFIER_IMAGE_NAME: classifier
+  COMMENTATOR_IMAGE_NAME: commentator
+  PROFILER_IMAGE_NAME: profiler
+  # Keep in sync with infra/variables.tf cloud_run_job_task_timeout default (Cloud Run default is 600s).
+  CLOUD_RUN_JOB_TASK_TIMEOUT: "3600s"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve deployment target
+        id: target
+        env:
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          STG_PROJECT_VAR: ${{ vars.STG_GCP_PROJECT_ID }}
+          STG_PROJECT_SECRET: ${{ secrets.STG_GCP_PROJECT_ID }}
+          PROD_PROJECT_VAR: ${{ vars.PROD_GCP_PROJECT_ID }}
+          PROD_PROJECT_SECRET: ${{ secrets.PROD_GCP_PROJECT_ID }}
+          LEGACY_PROJECT_VAR: ${{ vars.GCP_PROJECT_ID }}
+          LEGACY_PROJECT_SECRET: ${{ secrets.GCP_PROJECT_ID }}
+          STG_SERVICE_VAR: ${{ vars.STG_SERVICE_NAME }}
+          PROD_SERVICE_VAR: ${{ vars.PROD_SERVICE_NAME }}
+          LEGACY_SERVICE: ${{ env.SERVICE }}
+          STG_TF_STATE_BUCKET_VAR: ${{ vars.STG_TF_STATE_BUCKET }}
+          PROD_TF_STATE_BUCKET_VAR: ${{ vars.PROD_TF_STATE_BUCKET }}
+          LEGACY_TF_STATE_BUCKET_VAR: ${{ vars.TF_STATE_BUCKET }}
+        run: |
+          if [ "$IS_TAG" = "true" ]; then
+            PID="$PROD_PROJECT_VAR"
+            if [ -z "$PID" ]; then PID="$PROD_PROJECT_SECRET"; fi
+            if [ -z "$PID" ]; then
+              PID="$LEGACY_PROJECT_VAR"
+              if [ -z "$PID" ]; then PID="$LEGACY_PROJECT_SECRET"; fi
+            fi
+            SVC="$PROD_SERVICE_VAR"
+            if [ -z "$SVC" ]; then SVC="$LEGACY_SERVICE"; fi
+            STATE_BUCKET="$PROD_TF_STATE_BUCKET_VAR"
+            if [ -z "$STATE_BUCKET" ]; then STATE_BUCKET="$LEGACY_TF_STATE_BUCKET_VAR"; fi
+            ENV_NAME="production"
+          else
+            PID="$STG_PROJECT_VAR"
+            if [ -z "$PID" ]; then PID="$STG_PROJECT_SECRET"; fi
+            if [ -z "$PID" ]; then
+              PID="$LEGACY_PROJECT_VAR"
+              if [ -z "$PID" ]; then PID="$LEGACY_PROJECT_SECRET"; fi
+            fi
+            SVC="$STG_SERVICE_VAR"
+            if [ -z "$SVC" ]; then SVC="$LEGACY_SERVICE"; fi
+            STATE_BUCKET="$STG_TF_STATE_BUCKET_VAR"
+            if [ -z "$STATE_BUCKET" ]; then STATE_BUCKET="$LEGACY_TF_STATE_BUCKET_VAR"; fi
+            ENV_NAME="staging"
+          fi
+
+          if [ -z "$PID" ]; then
+            echo "::error::Target GCP project id is not set. Configure STG_GCP_PROJECT_ID/PROD_GCP_PROJECT_ID (or legacy GCP_PROJECT_ID)."
+            exit 1
+          fi
+          echo "project_id=$PID" >> "$GITHUB_OUTPUT"
+          echo "service_name=$SVC" >> "$GITHUB_OUTPUT"
+          echo "environment_name=$ENV_NAME" >> "$GITHUB_OUTPUT"
+          echo "tf_state_bucket=$STATE_BUCKET" >> "$GITHUB_OUTPUT"
+
+      - name: Deployment summary
+        run: |
+          echo "Environment: ${{ steps.target.outputs.environment_name }}"
+          echo "Project: ${{ steps.target.outputs.project_id }}"
+          echo "Service: ${{ steps.target.outputs.service_name }}"
+          echo "TF state bucket: ${{ steps.target.outputs.tf_state_bucket }}"
+
+      - name: Normalize WIF provider (trim; must use project number)
+        id: wif
+        env:
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          STG_RAW: ${{ secrets.STG_WIF_PROVIDER }}
+          PROD_RAW: ${{ secrets.PROD_WIF_PROVIDER }}
+          LEGACY_RAW: ${{ secrets.WIF_PROVIDER }}
+        run: |
+          if [ "$IS_TAG" = "true" ]; then
+            RAW="$PROD_RAW"
+            if [ -z "$RAW" ]; then RAW="$LEGACY_RAW"; fi
+          else
+            RAW="$STG_RAW"
+            if [ -z "$RAW" ]; then RAW="$LEGACY_RAW"; fi
+          fi
+          # STS uses audience //iam.googleapis.com/${workload_identity_provider}; path must exist in GCP.
+          PROVIDER="$(printf '%s' "$RAW" | tr -d '[:space:]')"
+          if ! printf '%s' "$PROVIDER" | grep -qE '^projects/[0-9]+/locations/global/workloadIdentityPools/[^/]+/providers/[^/]+$'; then
+            echo "::error::WIF_PROVIDER must be exactly: projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL/providers/PROVIDER (numeric project number only). Sync from: terraform output -raw github_actions_workload_identity_provider"
+            exit 1
+          fi
+          echo "workload_identity_provider=$PROVIDER" >> "$GITHUB_OUTPUT"
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ steps.wif.outputs.workload_identity_provider }}
+          service_account: ${{ startsWith(github.ref, 'refs/tags/v') && (secrets.PROD_WIF_SERVICE_ACCOUNT || secrets.WIF_SERVICE_ACCOUNT) || (secrets.STG_WIF_SERVICE_ACCOUNT || secrets.WIF_SERVICE_ACCOUNT) }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      # Terraform（任意）: Repository variables に TF_STATE_BUCKET を設定し、TF_APPLY_IN_CD=true で有効。
+      # 初回は鶏卵のため、オーナーが一度 infra/scripts/bootstrap_gcp_for_ci.sh を実行してから CD に任せる。
+      # GHA 用 SA: github_actions_wif.tf の個別ロール（editor は使わない）。
+      - name: Setup Terraform
+        if: ${{ vars.TF_APPLY_IN_CD == 'true' && steps.target.outputs.tf_state_bucket != '' }}
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.14.8"
+
+      - name: Terraform apply
+        if: ${{ vars.TF_APPLY_IN_CD == 'true' && steps.target.outputs.tf_state_bucket != '' }}
+        working-directory: infra
+        env:
+          TF_VAR_project_id: ${{ steps.target.outputs.project_id }}
+          TF_VAR_terraform_state_bucket: ${{ steps.target.outputs.tf_state_bucket }}
+          TF_VAR_public_base_url: ${{ vars.PUBLIC_BASE_URL }}
+          TF_VAR_ga_measurement_id: ${{ vars.GA_MEASUREMENT_ID }}
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ steps.target.outputs.tf_state_bucket }}" \
+            -backend-config="prefix=rss-aggregator/terraform"
+          # 既存 Job が state にないと 409 になるため、import を試す（未作成・取り込み済みなら失敗してよい）
+          terraform import -input=false 'google_cloud_run_v2_job.collect' \
+            "projects/${{ steps.target.outputs.project_id }}/locations/${{ env.REGION }}/jobs/${{ steps.target.outputs.service_name }}-collector" \
+            || true
+          terraform import -input=false 'google_cloud_run_v2_job.classify' \
+            "projects/${{ steps.target.outputs.project_id }}/locations/${{ env.REGION }}/jobs/${{ steps.target.outputs.service_name }}-classifier" \
+            || true
+          terraform import -input=false 'google_cloud_run_v2_job.comment' \
+            "projects/${{ steps.target.outputs.project_id }}/locations/${{ env.REGION }}/jobs/${{ steps.target.outputs.service_name }}-commentator" \
+            || true
+          terraform import -input=false 'google_cloud_run_v2_job.profile' \
+            "projects/${{ steps.target.outputs.project_id }}/locations/${{ env.REGION }}/jobs/${{ steps.target.outputs.service_name }}-profiler" \
+            || true
+          terraform apply -input=false -auto-approve
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push images
+        env:
+          IMAGE_URI: ${{ env.REGION }}-docker.pkg.dev/${{ steps.target.outputs.project_id }}/${{ env.AR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          COLLECTOR_URI: ${{ env.REGION }}-docker.pkg.dev/${{ steps.target.outputs.project_id }}/${{ env.AR_REPO }}/${{ env.COLLECTOR_IMAGE_NAME }}:${{ github.sha }}
+          CLASSIFIER_URI: ${{ env.REGION }}-docker.pkg.dev/${{ steps.target.outputs.project_id }}/${{ env.AR_REPO }}/${{ env.CLASSIFIER_IMAGE_NAME }}:${{ github.sha }}
+          COMMENTATOR_URI: ${{ env.REGION }}-docker.pkg.dev/${{ steps.target.outputs.project_id }}/${{ env.AR_REPO }}/${{ env.COMMENTATOR_IMAGE_NAME }}:${{ github.sha }}
+          PROFILER_URI: ${{ env.REGION }}-docker.pkg.dev/${{ steps.target.outputs.project_id }}/${{ env.AR_REPO }}/${{ env.PROFILER_IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          docker build -f services/web/Dockerfile -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+          docker build -f services/collector/Dockerfile -t "$COLLECTOR_URI" .
+          docker push "$COLLECTOR_URI"
+          docker build -f services/classifier/Dockerfile -t "$CLASSIFIER_URI" .
+          docker push "$CLASSIFIER_URI"
+          docker build -f services/commentator/Dockerfile -t "$COMMENTATOR_URI" .
+          docker push "$COMMENTATOR_URI"
+          docker build -f services/profiler/Dockerfile -t "$PROFILER_URI" .
+          docker push "$PROFILER_URI"
+
+      - name: Deploy Cloud Run service
+        env:
+          IMAGE_URI: ${{ env.REGION }}-docker.pkg.dev/${{ steps.target.outputs.project_id }}/${{ env.AR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          gcloud run deploy "${{ steps.target.outputs.service_name }}" \
+            --project="${{ steps.target.outputs.project_id }}" \
+            --region="${{ env.REGION }}" \
+            --image="$IMAGE_URI" \
+            --allow-unauthenticated \
+            --quiet
+
+      # Terraform と同じ運用 SA・環境変数（infra/main.tf の google_cloud_run_v2_job）で作成／更新する。
+      # 初回は Cloud Run ランタイム SA（${SERVICE}-run@）と Firestore が既に存在することが前提。
+      - name: Deploy Cloud Run collector job
+        env:
+          COLLECTOR_URI: ${{ env.REGION }}-docker.pkg.dev/${{ steps.target.outputs.project_id }}/${{ env.AR_REPO }}/${{ env.COLLECTOR_IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          PROJECT="${{ steps.target.outputs.project_id }}"
+          REGION="${{ env.REGION }}"
+          JOB="${{ steps.target.outputs.service_name }}-collector"
+          SA="${{ steps.target.outputs.service_name }}-run@${PROJECT}.iam.gserviceaccount.com"
+          gcloud run jobs deploy "$JOB" \
+            --project="$PROJECT" \
+            --region="$REGION" \
+            --image="$COLLECTOR_URI" \
+            --service-account="$SA" \
+            --tasks=1 \
+            --task-timeout="${{ env.CLOUD_RUN_JOB_TASK_TIMEOUT }}" \
+            --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT},FIRESTORE_COLLECTION=articles,TZ=Asia/Tokyo"
+
+      - name: Deploy Cloud Run classifier job
+        env:
+          CLASSIFIER_URI: ${{ env.REGION }}-docker.pkg.dev/${{ steps.target.outputs.project_id }}/${{ env.AR_REPO }}/${{ env.CLASSIFIER_IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          PROJECT="${{ steps.target.outputs.project_id }}"
+          REGION="${{ env.REGION }}"
+          JOB="${{ steps.target.outputs.service_name }}-classifier"
+          SA="${{ steps.target.outputs.service_name }}-run@${PROJECT}.iam.gserviceaccount.com"
+          gcloud run jobs deploy "$JOB" \
+            --project="$PROJECT" \
+            --region="$REGION" \
+            --image="$CLASSIFIER_URI" \
+            --service-account="$SA" \
+            --tasks=1 \
+            --task-timeout="${{ env.CLOUD_RUN_JOB_TASK_TIMEOUT }}" \
+            --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT},FIRESTORE_COLLECTION=articles,GEMINI_LOCATION=global,GEMINI_MODEL=gemini-3-flash-preview,CLASSIFIER_VERSION=v1,TZ=Asia/Tokyo"
+
+      - name: Deploy Cloud Run commentator job
+        env:
+          COMMENTATOR_URI: ${{ env.REGION }}-docker.pkg.dev/${{ steps.target.outputs.project_id }}/${{ env.AR_REPO }}/${{ env.COMMENTATOR_IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          PROJECT="${{ steps.target.outputs.project_id }}"
+          REGION="${{ env.REGION }}"
+          JOB="${{ steps.target.outputs.service_name }}-commentator"
+          SA="${{ steps.target.outputs.service_name }}-run@${PROJECT}.iam.gserviceaccount.com"
+          gcloud run jobs deploy "$JOB" \
+            --project="$PROJECT" \
+            --region="$REGION" \
+            --image="$COMMENTATOR_URI" \
+            --service-account="$SA" \
+            --tasks=1 \
+            --task-timeout="${{ env.CLOUD_RUN_JOB_TASK_TIMEOUT }}" \
+            --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT},FIRESTORE_COLLECTION=articles,GEMINI_LOCATION=global,COMMENTATOR_MODEL=gemini-3-flash-preview,TZ=Asia/Tokyo"
+
+      - name: Deploy Cloud Run profiler job
+        env:
+          PROFILER_URI: ${{ env.REGION }}-docker.pkg.dev/${{ steps.target.outputs.project_id }}/${{ env.AR_REPO }}/${{ env.PROFILER_IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          PROJECT="${{ steps.target.outputs.project_id }}"
+          REGION="${{ env.REGION }}"
+          JOB="${{ steps.target.outputs.service_name }}-profiler"
+          SA="${{ steps.target.outputs.service_name }}-run@${PROJECT}.iam.gserviceaccount.com"
+          gcloud run jobs deploy "$JOB" \
+            --project="$PROJECT" \
+            --region="$REGION" \
+            --image="$PROFILER_URI" \
+            --service-account="$SA" \
+            --tasks=1 \
+            --task-timeout="${{ env.CLOUD_RUN_JOB_TASK_TIMEOUT }}" \
+            --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT},FIRESTORE_FEEDS_COLLECTION=feeds,GEMINI_LOCATION=global,PROFILER_MODEL=gemini-3-flash-preview,PROFILER_SKIP_EXISTING=true,TZ=Asia/Tokyo"
+
