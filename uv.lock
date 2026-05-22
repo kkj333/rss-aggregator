@@ -2559,7 +2559,7 @@ provides-extras = ["cloud"]
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = ">=8.3.0" },
-    { name = "ruff", specifier = ">=0.15.13" },
+    { name = "ruff", specifier = ">=0.15.12" },
 ]
 
 [[package]]
@@ -2593,7 +2593,7 @@ provides-extras = ["cloud"]
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = ">=8.3.0" },
-    { name = "ruff", specifier = ">=0.15.13" },
+    { name = "ruff", specifier = ">=0.15.12" },
 ]
 
 [[package]]
@@ -2639,7 +2639,7 @@ provides-extras = ["cloud"]
 dev = [
     { name = "pytest", specifier = ">=8.3.0" },
     { name = "pytest-asyncio", specifier = ">=0.25.0" },
-    { name = "ruff", specifier = ">=0.15.13" },
+    { name = "ruff", specifier = ">=0.15.12" },
 ]
 
 [[package]]
@@ -2675,7 +2675,7 @@ provides-extras = ["cloud"]
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = ">=8.3.0" },
-    { name = "ruff", specifier = ">=0.15.13" },
+    { name = "ruff", specifier = ">=0.15.12" },
 ]
 
 [[package]]
@@ -2701,7 +2701,7 @@ provides-extras = ["cloud"]
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = ">=8.3.0" },
-    { name = "ruff", specifier = ">=0.15.13" },
+    { name = "ruff", specifier = ">=0.15.12" },
 ]
 
 [[package]]
@@ -2745,7 +2745,7 @@ provides-extras = ["cloud"]
 dev = [
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "pytest", specifier = ">=8.3.0" },
-    { name = "ruff", specifier = ">=0.15.13" },
+    { name = "ruff", specifier = ">=0.15.12" },
 ]
 
 [[package]]
