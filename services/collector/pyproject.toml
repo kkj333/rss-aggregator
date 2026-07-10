@@ -16,7 +16,7 @@ cloud = [
 [dependency-groups]
 dev = [
     "pytest>=8.3.0",
-    "ruff>=0.15.12",
+    "ruff>=0.15.21",
 ]
 
 [build-system]
