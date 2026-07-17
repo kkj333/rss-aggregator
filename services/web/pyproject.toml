@@ -5,7 +5,7 @@ description = "FastAPI web UI for rss-aggregator (read-only)"
 requires-python = ">=3.12"
 dependencies = [
     "rss-aggregator-shared",
-    "fastapi>=0.139.0",
+    "fastapi>=0.139.2",
     "jinja2>=3.1.4",
     "uvicorn[standard]>=0.51.0",
     "markdown>=3.10.2",
