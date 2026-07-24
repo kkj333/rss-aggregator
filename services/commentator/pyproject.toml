@@ -5,7 +5,7 @@ description = "AI comment generation job (Cloud Run Job) for rss-aggregator"
 requires-python = ">=3.12"
 dependencies = [
     "rss-aggregator-shared",
-    "google-genai>=1.0.0",
+    "google-genai>=2.14.0",
     "httpx>=0.28.0",
     "beautifulsoup4>=4.12.0",
 ]
@@ -13,7 +13,7 @@ dependencies = [
 [project.optional-dependencies]
 cloud = [
     "rss-aggregator-shared[cloud]",
-    "google-genai>=1.0.0",
+    "google-genai>=2.14.0",
     "httpx>=0.28.0",
     "beautifulsoup4>=4.12.0",
 ]
