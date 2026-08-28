@@ -22,7 +22,7 @@ cloud = [
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.25.0",
-    "ruff>=0.16.3",
+    "ruff>=0.16.4",
 ]
 
 [build-system]
