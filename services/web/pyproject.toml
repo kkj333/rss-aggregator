@@ -21,7 +21,7 @@ cloud = [
 dev = [
     "httpx>=0.28.0",
     "pytest>=8.3.0",
-    "ruff>=0.16.4",
+    "ruff>=0.16.5",
 ]
 
 [build-system]
