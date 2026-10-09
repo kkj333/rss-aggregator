@@ -5,7 +5,7 @@ description = "RSS collection job (Cloud Run Job) for rss-aggregator"
 requires-python = ">=3.12"
 dependencies = [
     "rss-aggregator-shared",
-    "feedparser>=6.0.11",
+    "feedparser>=6.0.14",
 ]
 
 [project.optional-dependencies]
