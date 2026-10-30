@@ -19,7 +19,7 @@ members = [
 dev = [
     "httpx>=0.28.0",
     "pytest>=9.1.1",
-    "pytest-asyncio>=1.4.0",
+    "pytest-asyncio>=1.4.1",
     "ruff>=0.17.3",
     "rss-aggregator-shared",
     "rss-aggregator-web",
