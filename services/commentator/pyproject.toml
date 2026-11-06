@@ -20,7 +20,7 @@ cloud = [
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3.0",
+    "pytest>=9.2.0",
     "pytest-asyncio>=1.4.1",
     "ruff>=0.17.3",
 ]
