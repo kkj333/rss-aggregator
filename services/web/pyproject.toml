@@ -9,7 +9,7 @@ dependencies = [
     "jinja2>=3.1.4",
     "uvicorn[standard]>=0.54.0",
     "markdown>=3.11.2",
-    "nh3>=0.3.7",
+    "nh3>=0.3.8",
 ]
 
 [project.optional-dependencies]
